@@ -61,7 +61,7 @@ def main():
     ensure_stage_exists()
 
     st.write(session)
-    st.write(st.user)
+    # st.write(st.user)
 
     function_option = st.selectbox(
         "Do you need to edit an existing function o create a new one?",
