@@ -14,7 +14,7 @@ session = get_active_session()
 # -------------------------------------
 database_name = 'ACCELERATORS'
 schema_name = 'STP'
-
+stage_name = '__functions_stmts'
 
 # -------------------------------------
 # Return list of databases
@@ -52,6 +52,67 @@ def retrieve_udf_udtfs():
     select *
     from {database_name}.{schema_name}.functions
     """).collect()
+
+
+
+def write_to_stage(file_name='test.sql'):
+    try:
+        file_content = f"SONO QUI"
+        file_name = 'udf_ddl.txt'
+
+        # Convert the string to bytes
+        file_bytes = file_content.encode('utf-8')
+        # Write to a bytes-like object
+        file = io.BytesIO(file_bytes)
+    except Exception as e:
+        st.error(f"An error occurred: {e}")
+
+    st.write('qui')
+        
+    # Use Snowflake's PUT command to upload the file to the internal stage
+    try:
+        session.file.put_stream(file, f"@{database_name}.{schema_name}.__functions_stmts/{file_name}", auto_compress = False, overwrite=True)
+        st.success('File saved to Snowflake internal stage successfully!')
+    except Exception as e:
+        st.error(f"An error occurred: {e}")
+
+
+def downloader():
+    st.header("File Download")
+    st.write("Download files from stage.")
+
+    # Get list of files in stage
+    try:
+        stage_files = session.sql(f"LIST @{database_name}.{schema_name}.{stage_name}").collect()
+    except Exception as e:
+        st.error(f"An error occurred while listing files: {str(e)}")
+        return
+
+    if stage_files:
+        file_names = [
+            row['name'].split('/', 1)[1] if '/' in row['name'] else row['name']
+            for row in stage_files
+        ]
+        selected_file = st.selectbox(
+            "Select a file to download",
+            file_names
+        )
+
+        if st.button("Download"):
+            try:
+                # Use the correct method to get the file stream
+                with session.file.get_stream(f"@{database_name}.{schema_name}.{stage_name}/{selected_file}") as file_stream:
+                    file_content = file_stream.read()
+                    st.download_button(
+                        label="Download File",
+                        data=file_content,
+                        file_name=selected_file,
+                        mime="application/octet-stream"
+                    )
+            except Exception as e:
+                st.error(f"An error occurred during download: {str(e)}")
+    else:
+        st.warning("No files found in stage.")
 
 # -------------------------------------
 # Main Streamlit app
@@ -109,6 +170,8 @@ def main():
             except Exception as e:
                 del password
                 st.error(f"Error occurred while creating secret: {str(e)}")
+
+            write_to_stage()
 
     
     # -------------------------
@@ -190,4 +253,5 @@ def main():
 # Launch app
 # -------------------------------------
 if __name__ == "__main__":
-    main() 
+    main()
+    downloader()
